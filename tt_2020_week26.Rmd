@@ -1,0 +1,160 @@
+---
+title: "TidyTuesday#26"
+author: "Danagul Kaliyeva"
+date: "6/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+library(gganimate)
+library(sf)
+library(bcmaps)
+library(bcmapsdata)
+```
+
+```{r}
+tuesdata <- tt_load(2020, 26)
+
+```
+```{r}
+locations %>%
+  count(study_site)
+```
+
+
+```{r}
+animation <-
+  locations %>%
+  mutate(timestamp = as.Date(timestamp)) %>%
+  ggplot() +
+  geom_path(aes(x = longitude, y = latitude, col = season)) +
+  facet_wrap(vars(season)) +
+  labs(title = 'Date: {frame_reveal}', x = '', y = '') +
+  transition_reveal(timestamp) +
+  ease_aes('linear')
+
+```
+
+
+```{r}
+individuals %>%
+  filter(deploy_off_type == "dead") %>%
+  mutate(death_cause = str_to_lower(death_cause),
+         death_cause = case_when(str_detect(death_cause, "predation") ~ "(suspected) predation",
+                                 is,na(death_cause) ~ "NA",
+                                 TRUE ~ "other")) %>%
+  pivot_longer(cols = c("deploy_on_longitude", "deploy_on_latitude", "deploy_off_longitude", "deploy_off_latitude"), 
+               names_to = c("deploy", ".value"), 
+               names_pattern = "deploy_(.*)_(.*)") %>%
+  ggplot() +
+  geom_point(aes(longitude, latitude, shape = death_cause, col = deploy), size = 3) +
+  geom_path(aes(longitude, latitude, group = animal_id))
+
+individuals %>%
+  filter(!is.na(deploy_off_longitude), !is.na(deploy_off_latitude)) %>%
+  mutate(distance = 
+              geosphere::distm(x = c(deploy_on_longitude, deploy_on_latitude), 
+                               y = c(deploy_off_longitude, deploy_off_latitude),
+                               fun = distHaversine))
+  
+individuals %>%
+  filter(!is.na(deploy_off_longitude), !is.na(deploy_off_latitude), !is.na(deploy_on_longitude), !is.na(deploy_off_latitude)) %>%
+    mutate(death_cause = str_to_lower(death_cause),
+         death_cause = case_when(str_detect(death_cause, "predation") ~ "(suspected) predation",
+                                 is.na(death_cause) ~ "NA",
+                                 TRUE ~ death_cause)) %>%
+  group_by(animal_id) %>%
+  summarise(
+    death_cause,
+    distance = 
+              geosphere::distm(x = c(deploy_on_longitude, deploy_on_latitude), y = c(deploy_off_longitude, deploy_off_latitude), fun = distHaversine)) %>%
+  ungroup() %>%
+  ggplot(aes(y = distance, x = fct_reorder(animal_id, distance), fill = death_cause)) +
+  geom_col() +
+  coord_flip()
+
+```
+
+```{r}
+
+ind <- 
+  #table tuesdata$individuals
+  individuals %>%
+  #there are four scenarios how deployment could end: dead, unknown, other and removal. 
+  #other types than dead do not give much information so I focused on dead caribou 
+  filter(deploy_off_type == "dead") %>%
+  #there were 17 different causes.
+  #but I do not see the difference between the cause "predation - wold" and "predation - bear", for example, 
+  #so I classified causes as "predation or suspected in predation" or "other causes"
+  mutate(death_cause = str_to_lower(death_cause),
+         death_cause = case_when(str_detect(death_cause, "predation") ~ "(suspected) predation",
+                                 TRUE ~ "other")) %>%
+  #transform longitude and latitude columns into sf geometry
+  sf::st_as_sf(coords = c("deploy_off_longitude", "deploy_off_latitude"), crs = 4326) %>%
+  #transformation necessary to use with bcmaps
+  transform_bc_albers()
+
+lc <- 
+  #table tuesdata$lcations
+  locations %>%
+  sf::st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>%
+  transform_bc_albers()
+
+deathes <- 
+  ggplot() +
+  #mapped Bitish Columbia borders with bc_neighbours()
+  geom_sf(data = bc_neighbours(), color = "white") +
+  #mapped rivers with watercourses_15M()
+  geom_sf(data = watercourses_15M(), color = "white") +
+  #mapped locations of caribou
+  geom_sf(data = lc, mapping = aes(), col = "grey", size = 0.5) +
+  #mapped locations where deployment ended with death
+  geom_sf(data = ind, mapping = aes(color = death_cause, fill = death_cause), size = 2) +
+  coord_sf(xlim = c(950000, 1500000), ylim = c(750000, 1500000), expand = FALSE) +
+  labs(subtitle = "Locations where deployment of caribou ended with death") +
+  ggthemes::theme_map(base_family = "Mono") 
+
+sites <-
+  ggplot() +
+  geom_sf(data = bc_neighbours(), color = "white") +
+  geom_sf(data = watercourses_15M(), color = "white") +
+  geom_sf(data = lc, mapping = aes(col = study_site, fill = study_site), size = 0.5) +
+  coord_sf(xlim = c(950000, 1500000), ylim = c(750000, 1500000), expand = FALSE) +
+  labs(subtitle = "All locations by study sites", col = "", fill = "") +
+  ggthemes::theme_map(base_family = "Mono") 
+
+two_maps <-
+  #patchwork is used to add plots together
+  patchwork::wrap_plots(sites, deathes) + 
+  patchwork::plot_annotation(title = "Caribou Location Tracking", 
+                             caption = "Data: tidytuesdayR::tt_load(2020, 26)",
+                             theme = theme(plot.title = element_text(family = "Mono"), 
+                                           plot.caption = element_text(family = "Mono")))
+
+```
+
+```{r}
+
+lc <- 
+  locations %>%
+  sf::st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>%
+  transform_bc_albers()
+
+ggplot() +
+  geom_sf(data = bc_neighbours(), color = "white") +
+  geom_sf(data = watercourses_15M(), color = "white") +
+  geom_sf(data = lc, mapping = aes(color = study_site)) +
+  coord_sf(xlim = c(1100000, 1400000), ylim = c(901301.6, 1353768), expand = FALSE) +
+  ggthemes::theme_map() +
+  transition_time(timestamp) +
+  ease_aes("linear")
+
+```
+
+

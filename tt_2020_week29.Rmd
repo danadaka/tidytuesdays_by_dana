@@ -1,0 +1,24 @@
+---
+title: "Astronauts"
+author: "Danagul Kaliyeva"
+date: "7/19/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+tt <- tidytuesdayR::tt_load(2020, week = 29)
+tt_old <- tidytuesdayR::tt_load("2019", week = 3)
+
+astronauts <- tt$astronauts
+agencies <- tt_old$agencies
+launches <- tt_old$launches
+
+library(tidyverse)
+
+astronauts
+```
+
