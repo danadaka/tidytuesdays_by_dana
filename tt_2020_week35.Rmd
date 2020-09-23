@@ -1,0 +1,89 @@
+---
+title: "tt_2020_week39"
+author: "Danagul Kaliyeva"
+date: "9/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+```{r loading the data}
+tuesdata <- tidytuesdayR::tt_load(2020, week = 39)
+
+peaks <- tuesdata$peaks
+members <- tuesdata$members
+expeditions <- tuesdata$expeditions
+
+```
+
+```{r deaths_plot}
+
+with_text <-
+  members %>% 
+  ggplot() + 
+  geom_bar(aes(year, fill = died)) +
+  scale_fill_manual(values = c("light gray", "red"), name = "", labels = c("survived", "died")) +
+  scale_x_discrete(limits = seq(1905, 2020, by = 5), breaks = seq(1905, 2020, by = 5)) +
+  labs(x = "", y = "", title = "How many people die each year in the Himalayas compared to all who have tried?",
+       subtitle = "Interesting facts are noted") +
+  theme_test() +
+  theme(plot.margin = margin(25, 25, 25, 25), 
+        legend.position = c(0.04, 0.95),
+        plot.title = element_text(size = 24, family = "Mono", colour = "dark blue"),
+        plot.subtitle = element_text(size = 14, family = "Mono", colour = "gray20"),
+        legend.text = element_text(size = 14, family = "Mono")) +
+  annotate(
+    "text", x = 1970, y = 1000, family = "Mono", size = 3.5, color = "dark blue", lineheight = .9,
+    label = "The first all woman expedition"
+  ) +
+  annotate(
+    "text", x = 1930, y = 1300, family = "Mono", size = 3.5, color = "gray20",
+    label = "The first Himalayan expedition aimed to climb Kanchenjunga (8,586 m), "
+  ) +
+  annotate(
+    "text", x = 1938, y = 1050, family = "Mono", size = 3.5, color = "dark blue",
+    label = "which was only climbed in 1955, after 50 years."
+  ) + 
+  annotate(
+    "text", x = 1927, y = -200, family = "Mono", size = 3.5, color = "gray20", lineheight = .9, 
+    label = "The top of Mt. Everest (8,848 m) was aimed first in 1921,"
+  ) +
+  annotate(
+    "text", x = 1945, y = -300, family = "Mono", size = 3.5, color = "dark blue", lineheight = .9, 
+    label = "and reached by Tenzing Norgay and Edmund Hillary in 1953.")
+  )
+
+arrows <- 
+  tibble(
+    x1 = c(1970, 1930, 1927),
+    x2 = c(1978, 1955, 1921),
+    y1 = c(970, 1000, -160), 
+    y2 = c(585, 180, -10)
+  )
+
+arrows_2 <-
+  tibble(
+    x1 = c(1930, 1945),
+    x2 = c(1905, 1953),
+    y1 = c(1250, -260), 
+    y2 = c(18, -10) 
+  )
+
+with_text + 
+  geom_curve(
+    data = arrows, aes(x = x1, y = y1, xend = x2, yend = y2),
+    arrow = arrow(length = unit(0.07, "inch")), size = 0.4,
+    color = "gray20", curvature = -0.2
+  ) +
+  geom_curve(
+    data = arrows_2, aes(x = x1, y = y1, xend = x2, yend = y2),
+    arrow = arrow(length = unit(0.02, "inch")), size = 0.4,
+    color = "gray20", curvature = 0.2
+  )
+
+
+```
