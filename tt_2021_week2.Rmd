@@ -1,0 +1,143 @@
+---
+title: "TidyTuesday - Transit costs"
+author: "Danagul Kaliyeva"
+date: "1/5/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+```
+
+```{r}
+tuesdata <- tidytuesdayR::tt_load(2021, week = 2)
+
+transit_cost <- tuesdata$transit_cost
+```
+
+Firstly, I wanted to see the time lines.
+
+```{r}
+
+by_cost <- 
+  transit_cost %>%
+  mutate(real_cost = as.double(real_cost)) %>%
+  group_by(country) %>%
+  summarise(start_year = min(start_year, na.rm = TRUE),
+            end_year = max(end_year, na.rm = TRUE),
+            cost_km_mln = sum(real_cost)/sum(length)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  mutate(
+    start_year = as.numeric(start_year),
+    end_year = as.numeric(end_year),
+    country = fct_reorder(country, start_year, 
+                               .desc = TRUE),
+         comparative = case_when(
+           cost_km_mln < quantile(cost_km_mln, 0.25) ~ "low cost",
+           cost_km_mln > quantile(cost_km_mln, 0.75) ~ "high cost",
+           TRUE ~ "medium cost"
+         ),
+         comparative = as.factor(comparative)) %>%
+  ggplot() +
+  geom_point(aes(x = start_year, y = country), size = 2.5) +
+  geom_point(aes(x = end_year, y = country), size = 2.5) +
+  geom_segment(aes(x = start_year, 
+                   xend = end_year, 
+                   y = country, 
+                   yend = country, 
+                   col = comparative), size = 2) +
+  facet_wrap(vars(comparative), scales = "free_y") +
+  theme_light() 
+
+```
+
+But switched the topic.
+
+```{r}
+
+main_plot <- 
+  transit_cost %>%
+  mutate(real_cost = as.double(real_cost)) %>%
+  group_by(country) %>%
+  summarise(cost_km_mln = sum(real_cost)/sum(length),
+            total_length = sum(length),
+            coef = cost_km_mln/total_length) %>%
+  drop_na() %>%
+  ungroup() %>%
+  mutate(country = fct_reorder(country, coef, .desc = TRUE)) %>%
+  ggplot() +
+  geom_col(aes(y = coef, x = country)) +
+  coord_flip() +
+  theme_linedraw(base_line_size = 0, 
+                 base_family = "Mono", 
+                 base_size = 12) +
+  ylab("the coefficient in $mln/km\u00B2") +
+  theme(axis.title.x = element_text(hjust = 0.075, vjust = 5, size = 9),
+        axis.title.y = element_blank(),
+        plot.margin = margin(25, 25, 25, 25)) +
+  labs(title = "Transit Costs Project",
+       subtitle = "Comparison of countries by the costum coefficient.",
+       caption = "tidytuesday 2021, week 2")
+
+zoomed_plot <-
+  transit_cost %>%
+  mutate(real_cost = as.double(real_cost)) %>%
+  group_by(country) %>%
+  summarise(cost_km_mln = sum(real_cost)/sum(length),
+            total_length = sum(length),
+            coef = cost_km_mln/total_length) %>%
+  drop_na() %>%
+  ungroup() %>%
+  slice_min(n = 10, order_by = coef) %>%
+  mutate(country = fct_reorder(country, coef, .desc = TRUE)) %>%
+  ggplot() +
+  geom_col(aes(y = coef, x = country)) +
+  coord_flip() +
+  theme_linedraw(base_line_size = 0, 
+                 base_family = "Mono", 
+                 base_size = 9) +
+  ylab("coefficient") +
+  theme(axis.title.x = element_text(hjust = 0.09, vjust = 8, size = 8),
+        axis.title.y = element_blank(), 
+        legend.position = "none") +
+  labs(
+    title = "Countries with the lowest ratio of cost per km to length ")
+
+```
+
+```{r}
+
+library(cowplot)
+
+ggdraw() +
+  draw_plot(main_plot) +
+  draw_grob(grid::rectGrob(
+    x = 0.7,
+    y = 0.7,
+    width = 0.84,
+    height = 0.84,
+    gp = grid::gpar(fill = "blue", alpha = 0.5)), scale = 0.5) +
+  draw_plot(zoomed_plot, x = 0.4, y = .4, width = 0.4, height = .4) +
+  draw_line(x = c(0.096, 0.39),
+            y = c(0.82, 0.5),
+            size = 1.5,
+            colour = "blue") +
+  draw_grob(grid::rectGrob(
+    x = -0.33,
+    y = 1.155,
+    width = 0.05,
+    height = 0.29,
+    gp = grid::gpar(fill = "white", alpha = 0.5)), scale = 0.5) +
+  draw_label("The coefficient, the real cost (in $mln) per km divided by the length (in km), \n assumes longer length (lower chance of constructing new line soon) \n and lower cost is indicative of a more efficient rail way system.", 
+             x = 0.6, y = 0.85, 
+             fontfamily = "Mono", size = 12, colour = "blue")
+
+```
+
+
